@@ -10,7 +10,6 @@ import (
 	"time"
 )
 
-// Цвета для логов
 const (
 	Red   = "\033[31m"
 	Reset = "\033[0m"
@@ -22,7 +21,6 @@ func main() {
 }
 
 func handleRequest(w http.ResponseWriter, req *http.Request) {
-	// Поддержка CORS запросов
 	if req.Method == "OPTIONS" {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -30,8 +28,6 @@ func handleRequest(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-
-	// 1. Логируем базовую информацию
 	log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	log.Printf("New request from %s", req.RemoteAddr)
 	log.Printf("Time: %s", time.Now().Format("2006-01-02 15:04:05"))
@@ -39,7 +35,6 @@ func handleRequest(w http.ResponseWriter, req *http.Request) {
 	log.Printf("URL: %s", req.URL.String())
 	log.Println("Headers:")
 
-	// 2. Анализ заголовков
 	var maliciousHeaderName string
 	var maliciousHeaderValue string
 	foundMalicious := false
@@ -56,7 +51,6 @@ func handleRequest(w http.ResponseWriter, req *http.Request) {
 			}
 		}
 	}
-
 	if foundMalicious {
 		log.Println("Suspicious header detected, request aborted.")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -70,16 +64,12 @@ func handleRequest(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprint(w, errorMsg)
 		return
 	}
-
-	// 3. Создаем новый запрос
 	outReq, err := http.NewRequest(req.Method, req.URL.String(), req.Body)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 	outReq.Header = req.Header.Clone()
-
-	// 4. Выполняем запрос
 	client := &http.Client{}
 	resp, err := client.Do(outReq)
 	if err != nil {
@@ -87,8 +77,6 @@ func handleRequest(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	defer resp.Body.Close()
-
-	// 5. Копируем ответ
 	copyHeader(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
@@ -101,8 +89,6 @@ func isSuspiciousHeader(name, value string) bool {
 		"Accept", "User-Agent", "Content-Type", "Host", "Connection", "Upgrade-Insecure-Requests",
 		"Accept-Encoding", "Accept-Language", "Sec-Fetch-Mode", "Cookie", "Proxy-Connection", "Sec-Fetch-Site", "Sec-Fetch-Dest", "Origin", "If-Modified-Since", "If-None-Match", "Priority", "Referer",
 	}
-
-	// Если это безопасный заголовок, игнорируем его
 	for _, safeHeader := range safeHeaders {
 		if name == safeHeader {
 			return false
@@ -121,23 +107,16 @@ func isSuspiciousHeader(name, value string) bool {
 	}
 
 	// Дополнительные регулярные выражения для более сложных инъекций
-	// Пример: обнаружение командной инъекции
 	commandInjectionPatterns := []string{
 		"cmd=", "bash", "sh", "exec", "system", "input", "|", "&", ";", "`", ">", "<",
 	}
-
-	// Преобразуем значение в нижний регистр
 	valueLower := strings.ToLower(value)
-
-	// Проверка на наличие подозрительных шаблонов
 	for _, pattern := range append(xssPatterns, sqlPatterns...) {
 		if strings.Contains(valueLower, pattern) {
 			log.Printf("Detected suspicious content in header %s: %s", name, value)
 			return true
 		}
 	}
-
-	// Проверка на командные инъекции через регулярные выражения
 	for _, pattern := range commandInjectionPatterns {
 		matched, _ := regexp.MatchString(pattern, valueLower)
 		if matched {
